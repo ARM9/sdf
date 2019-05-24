@@ -34,18 +34,6 @@ vec3 sd_symXZ ( vec3 p ) {
   return p;
 }
 /*
-float sd_repeat ( in vec3 p, in vec3 c, in (primitive) ) {
-    vec3 q = mod(p,c)-0.5*c;
-    return primitve( q );
-}
-float sd_twist( in sdf3d primitive, in vec3 p ) {
-    const float k = 10.0; // or some other amount
-    float c = cos(k*p.y);
-    float s = sin(k*p.y);
-    mat2  m = mat2(c,-s,s,c);
-    vec3  q = vec3(m*p.xz,p.y);
-    return primitive(q);
-}
 float sd_cheapBend( in sdf3d primitive, in vec3 p ) {
     const float k = 10.0; // or some other amount
     float c = cos(k*p.x);
@@ -185,7 +173,7 @@ void main() {
         mat3 camera = setCamera( ray_origin, ta, 0.0 );
 
         // ray direction
-        vec3 ray_direction = camera * normalize( vec3(p.xy,sin(iGlobalTime*0.1)*1.5) );
+        vec3 ray_direction = camera * normalize( vec3(p.xy, 0.5+sin(iGlobalTime*0.1)*1.0) );
 
         // render
         vec3 col = render( ray_origin, ray_direction );
