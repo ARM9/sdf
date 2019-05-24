@@ -1,17 +1,17 @@
 #iChannel0 https://66.media.tumblr.com/tumblr_mcmeonhR1e1ridypxo1_500.jpg
 #iChannel1 buf://./test.glsl
 
-#define EPSILON 0.0001
+#define EPSILON 0.01
 
-float ground (vec3 point) {
+float ground ( vec3 point ) {
   return point.y;
 }
 
-float sphere (vec3 point, float radius) {
+float sphere ( vec3 point, float radius ) {
   return length(point) - radius;
 }
 
-float box (vec3 point, vec3 bounds) {
+float box ( vec3 point, vec3 bounds ) {
   vec3 d = abs(point) - bounds;
   return length (max(d,0.0))
          + min (max (d.x, max(d.y, d.z)), 0.0);
@@ -19,6 +19,19 @@ float box (vec3 point, vec3 bounds) {
 float torus ( vec3 point, vec2 t ) {
   vec2 q = vec2(length(point.xz) - t.x, point.y);
   return length(q) - t.y;
+}
+
+vec3 sd_repeat (vec3 p, vec3 c) {
+  vec3 q = mod(p, c) - 0.5 * c;
+  return q;
+}
+vec3 sd_symX ( vec3 p ) {
+  p.x = abs(p.x);
+  return p;
+}
+vec3 sd_symXZ ( vec3 p ) {
+  p.xz = abs(p.xz);
+  return p;
 }
 /*
 float sd_repeat ( in vec3 p, in vec3 c, in (primitive) ) {
@@ -42,25 +55,29 @@ float sd_cheapBend( in sdf3d primitive, in vec3 p ) {
     return primitive(q);
 }*/
 
-#define sd_symX (p) vec3(abs(p.x), p.yz);
+//vec3 sd_tx( vec3 p, mat3x4 t ) {
+//    return invert(t) * p;
+//}
 
-/*float opSymX(vec3 p, sdf3d primitive ) {
-    p.x = abs(p.x);
-    return primitive(p);
+float sd_displace( float d, vec3 p, float k ) {
+  float d2 = sin(k * p.x) * sin(k * p.y) * sin(k * p.z);
+  return d+d2;
+}
+vec3 sd_twist ( vec3 p, float k ) {
+  float c = cos(k*p.y);
+  float s = sin(k*p.y);
+  mat2  m = mat2(c,-s,s,c);
+  vec3  q = vec3(m*p.xz,p.y);
+  return q;
 }
 
-float opSymXZ(vec3 p, sdf3d primitive ) {
-    p.xz = abs(p.xz);
-    return primitive(p);
-}*/
-
-float sd_union (float a, float b) {
+float sd_union ( float a, float b ) {
   return min(a, b);
 }
-float sd_diff (float a, float b) {
+float sd_diff ( float a, float b ) {
   return max(-a, b); // max(a, -b)?
 }
-float sd_intersect (float a, float b) {
+float sd_intersect ( float a, float b ) {
   return max(a, b);
 }
 float sd_smooth_union ( float d1, float d2, float k ) {
@@ -76,23 +93,38 @@ float sd_smooth_intersect ( float d1, float d2, float k ) {
   return mix( d2, d1, h ) + k*h*(1.0-h);
 }
 
-float world (in vec3 position) {
-  vec3 tp = position - vec3 (0.5, 1.0, 0.0);
+float world ( vec3 position ) {
+  vec3 tp = position - vec3 (0.0, 0.0, 0.0);
   tp.x = abs(tp.x);
 
+  return sd_displace (sphere ( sd_repeat (tp, vec3(4.0, 4.0, 4.0)), 0.3), vec3(5.0,3.0,7.0), sin(iGlobalTime*0.1));
+  float d = 100.0;
+  for (int i = 0; i < 8; i++) {
+    d = sd_smooth_union (
+          d,
+          torus(
+            sd_repeat (
+              vec3(tp.x + sin(iTime) * float(i&1),
+                   tp.y + sin(iTime) * float(i&2),
+                   tp.z + sin(iTime) * float(i&4) ),
+              vec3(-3.0, 3.0, 0.0) ), 
+            vec2(0.9, 0.2)), 0.5);
+  }
+  return d;
+  //return d;
   return sd_union (
-          ground(position - vec3 (0.0, -1.5, 0.0)),
+          d,//ground(position - vec3 (0.0, -1.5, 0.0)),
           sd_smooth_union (
-            //sphere(position - vec3 (-0.5, 1.0, -2.0), 0.1),
+            sphere(tp, 1.0),
             torus(tp, vec2(1.0,0.1+abs(sin(iGlobalTime)))),
-            box(tp, vec3(0.5, 1.0, 0.5)),
+            //box(tp, vec3(0.5, 1.0, 0.5)),
             0.3
           )
          );
 }
 
-float raymarch (in vec3 origin, in vec3 direction) {
-  const float minDistance = 1.0, maxDistance = 50.0;
+float raymarch ( vec3 origin, vec3 direction ) {
+  const float minDistance = 1.0, maxDistance = 100.0;
   float totalDistance = minDistance;
   const int maxSteps = 64;
   for (int steps = 0; steps < maxSteps; steps++) {
@@ -105,25 +137,29 @@ float raymarch (in vec3 origin, in vec3 direction) {
   return totalDistance;
 }
 
-vec3 normal (vec3 point) {
-  vec3 v = vec3(1.0);
-  return v;
+vec3 normal ( vec3 p ) {
+  float dx = world(vec3(p.x+EPSILON, p.yz)) - world(vec3(p.x-EPSILON, p.yz)),
+       dy = world(vec3(p.x, p.y+EPSILON, p.z)) - world(vec3(p.x, p.y-EPSILON, p.z)),
+       dz = world(vec3(p.xy, p.z+EPSILON)) - world(vec3(p.xy, p.z-EPSILON));
+  return normalize(vec3(dx, dy, dz));
 }
 
-vec3 render (in vec3 origin, in vec3 direction) {
+vec3 render ( vec3 eye, vec3 direction ) {
   vec3 color = vec3(0.0);
-  float t = raymarch(origin, direction);
+  float t = raymarch(eye, direction);
   if (t > -0.5) {
-    vec3 material = vec3(0.3);
-    color = material * 4.0 * vec3(1.0, 0.7, 0.5);
-    color *= exp( -0.0001 * t*t*t );
+    vec3 N = normal(eye + direction * t);
+    vec3 material = vec3(0.9);
+    //vec3 material = texture2D(iChannel1, vec2(iGlobalTime*0.0001)).rgb;
+    color = material * dot(N, normalize(eye));
+    color *= exp( -0.00001 * t*t*t );
     vec2 tuv = gl_FragCoord.xy / iResolution.xy;
-    color *= texture2D(iChannel1,tuv).rgb;
+    color *= texture2D(iChannel1,tuv).rgb;// * 0.2;// * dot(N, eye);
   }
   return color;
 }
 
-mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
+mat3 setCamera ( vec3 ro, vec3 ta, float cr )
 {
 	vec3 cw = normalize(ta-ro);
 	vec3 cp = vec3(sin(cr), cos(cr),0.0);
@@ -136,7 +172,6 @@ void main() {
 
   float time = iGlobalTime * 1.0;
 
-  vec2 tuv = gl_FragCoord.xy / iResolution.xy;
   vec2 uv = (gl_FragCoord.xy / iResolution.xx - 0.5) * 8.0;
 
   vec3 light = vec3(2.0, 2.0, 2.0);
@@ -144,7 +179,7 @@ void main() {
         vec2 p = (-iResolution.xy + 2.0*gl_FragCoord.xy)/iResolution.y;
 
         float an = 12.0 - sin(0.1*iTime);
-        vec3 ray_origin = vec3(0.0,0.0,18.0+6.0*sin(time));//vec3( 3.0*cos(0.1*an), 1.0, -3.0*sin(0.1*an) );
+        vec3 ray_origin = vec3(0.0,8.0,18.0+6.0*sin(time));//vec3( 3.0*cos(0.1*an), 1.0, -3.0*sin(0.1*an) );
         vec3 ta = vec3(cos(time)*3.0, sin(time) , cos(time)*2.0 );
         // camera-to-world transformation
         mat3 camera = setCamera( ray_origin, ta, 0.0 );
