@@ -60,7 +60,7 @@ float sd_cheapBend( in sdf3d primitive, in vec3 p ) {
 //}
 
 float sd_displace( float d, vec3 p, float k ) {
-  float d2 = sin(k * p.x) * sin(k * p.y) * sin(k * p.z);
+  float d2 = -abs(sin(k * p.x) * sin(k * p.y) * sin(k * p.z));
   return d+d2;
 }
 vec3 sd_twist ( vec3 p, float k ) {
@@ -97,7 +97,7 @@ float world ( vec3 position ) {
   vec3 tp = position - vec3 (0.0, 0.0, 0.0);
   tp.x = abs(tp.x);
 
-  return sd_displace (sphere ( sd_repeat (tp, vec3(4.0, 4.0, 4.0)), 0.3), vec3(5.0,3.0,7.0), sin(iGlobalTime*0.1));
+  return sd_displace (sphere ( sd_repeat (tp, vec3(4.0, 4.0, 4.0)), 0.3), vec3(5.0,3.0,7.0), sin(iGlobalTime*0.5));
   float d = 100.0;
   for (int i = 0; i < 8; i++) {
     d = sd_smooth_union (
@@ -185,7 +185,7 @@ void main() {
         mat3 camera = setCamera( ray_origin, ta, 0.0 );
 
         // ray direction
-        vec3 ray_direction = camera * normalize( vec3(p.xy,2.0) );
+        vec3 ray_direction = camera * normalize( vec3(p.xy,sin(iGlobalTime*0.1)*1.5) );
 
         // render
         vec3 col = render( ray_origin, ray_direction );

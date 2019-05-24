@@ -1,7 +1,3 @@
-#iChannel0 file://./duck.png
-#iChannel1 https://66.media.tumblr.com/tumblr_mcmeonhR1e1ridypxo1_500.jpg
-#iChannel2 buf://./other/shader.glsl
-
 void main() {
   float time = iGlobalTime * 1.0;
   vec2 uv = (gl_FragCoord.xy / iResolution.xx - 0.5) * 8.0;
